@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StudyQuest · estude com IA no navegador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🦉 StudyQuest</div>
+    <div class="stats">
+      <span class="chip" title="Dias seguidos">🔥 <b id="stat-streak">0</b></span>
+      <span class="chip" title="XP total">⚡ <b id="stat-xp">0</b></span>
+      <button id="btn-backstage" class="chip chip-btn" title="Bastidores (para devs)">🛠️ Bastidores</button>
+    </div>
+  </header>
+
+  <main id="app">
+
+    <!-- Aviso de WebGPU -->
+    <section id="screen-nogpu" class="screen hidden card">
+      <h1>😕 Seu navegador não suporta WebGPU</h1>
+      <p>O WebLLM precisa de WebGPU para rodar o modelo na sua placa de vídeo.
+         Abra esta página no <b>Chrome</b> ou <b>Edge</b> atualizados, em um computador.</p>
+    </section>
+
+    <!-- Configuração -->
+    <section id="screen-setup" class="screen hidden">
+      <div class="card">
+        <h1>O que vamos estudar hoje?</h1>
+        <p class="sub">A IA roda <b>100% no seu navegador</b>. Sem servidor, sem API key.</p>
+
+        <label for="topic">Tema</label>
+        <input id="topic" type="text" maxlength="80" placeholder="Ex.: Fotossíntese, Docker, Revolução Francesa...">
+        <div id="suggestions" class="chips"></div>
+
+        <label for="context">Conte mais (opcional)</label>
+        <textarea id="context" rows="2" maxlength="240" placeholder="Ex.: Sou dev backend e quero entender o básico para entrevistas."></textarea>
+
+        <label>Seu nível</label>
+        <div id="level" class="segmented">
+          <button data-v="iniciante" class="active">🌱 Iniciante</button>
+          <button data-v="intermediário">🌿 Intermediário</button>
+          <button data-v="avançado">🌳 Avançado</button>
+        </div>
+
+        <label>Modo</label>
+        <div id="mode" class="segmented">
+          <button data-v="quiz" class="active">🎯 Quiz</button>
+          <button data-v="flashcards">🃏 Flashcards</button>
+        </div>
+
+        <label for="count">Quantidade de perguntas: <b id="count-label">5</b></label>
+        <input id="count" type="range" min="1" max="10" value="5">
+
+        <button id="btn-start" class="btn btn-green btn-big">COMEÇAR</button>
+      </div>
+    </section>
+
+    <!-- Carregando modelo -->
+    <section id="screen-loading" class="screen hidden card center">
+      <div class="owl">🦉</div>
+      <h1 id="loading-title">Preparando o cérebro da coruja...</h1>
+      <p class="sub" id="loading-text">O modelo de IA está sendo baixado para o seu computador. Na primeira vez demora; depois fica em cache.</p>
+      <div class="bar"><div id="loading-bar" class="bar-fill"></div></div>
+      <small id="loading-detail" class="muted"></small>
+      <div id="loading-error" class="error hidden"></div>
+    </section>
+
+    <!-- Jogo -->
+    <section id="screen-game" class="screen hidden">
+      <div class="game-head">
+        <button id="btn-quit" class="icon-btn" title="Sair">✕</button>
+        <div class="bar"><div id="game-bar" class="bar-fill"></div></div>
+        <div id="hearts" class="hearts"></div>
+      </div>
+      <div class="game-meta"><span id="game-count"></span><span id="combo" class="combo"></span></div>
+
+      <div id="game-body" class="card"></div>
+
+      <div id="feedback" class="feedback hidden">
+        <div class="feedback-inner">
+          <div id="feedback-title" class="feedback-title"></div>
+          <div id="feedback-text" class="feedback-text"></div>
+          <button id="btn-explain" class="btn btn-ghost hidden">💡 Me explica melhor</button>
+          <div id="explain-box" class="explain hidden"></div>
+        </div>
+        <button id="btn-next" class="btn btn-big">CONTINUAR</button>
+      </div>
+    </section>
+
+    <!-- Resultado -->
+    <section id="screen-result" class="screen hidden card center">
+      <div id="result-stars" class="stars"></div>
+      <h1 id="result-title"></h1>
+      <div class="result-grid">
+        <div class="result-box"><small>ACERTOS</small><b id="result-score"></b></div>
+        <div class="result-box"><small>XP GANHO</small><b id="result-xp"></b></div>
+      </div>
+      <h2>🦉 Feedback da coruja</h2>
+      <div id="result-feedback" class="explain">...</div>
+      <div class="row">
+        <button id="btn-again" class="btn btn-green btn-big">ESTUDAR OUTRO TEMA</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Painel de bastidores -->
+  <aside id="backstage" class="backstage hidden">
+    <div class="backstage-head">
+      <b>🛠️ Bastidores</b>
+      <button id="btn-close-backstage" class="icon-btn">✕</button>
+    </div>
+    <dl>
+      <dt>Modelo</dt><dd id="bs-model">—</dd>
+      <dt>Velocidade</dt><dd id="bs-speed">—</dd>
+      <dt>Última chamada</dt><dd id="bs-time">—</dd>
+    </dl>
+    <h4>Prompt enviado</h4>
+    <pre id="bs-prompt">—</pre>
+    <h4>Resposta crua do modelo</h4>
+    <pre id="bs-output">—</pre>
+  </aside>
+
+  <div id="confetti"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
