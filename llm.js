@@ -102,7 +102,18 @@ const SCHEMAS = {
   },
 };
 
+// Divide o texto em frases e entrega a cada pergunta um trecho DIFERENTE. Só dizer "cubra outro
+// aspecto" não basta: modelo pequeno com o mesmo texto repete a mesma pergunta.
+function focusFor(facts, index, total) {
+  const sentences = facts.text.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter((x) => x.length > 30);
+  if (sentences.length < 2) return "";
+  const per = Math.max(2, Math.floor(sentences.length / total));
+  const start = (index * per) % sentences.length;
+  return Array.from({ length: Math.min(per, sentences.length) }, (_, k) => sentences[(start + k) % sentences.length]).join(" ");
+}
+
 function buildPrompt({ mode, topic, level, context, facts, previous, index, total }) {
+  const focus = facts ? focusFor(facts, index, total) : "";
   const shape = mode === "quiz"
     ? "uma pergunta de múltipla escolha: a resposta correta (curta, até 6 palavras), exatamente 3 respostas ERRADAS mas plausíveis (também curtas, diferentes da correta) e uma explicação de UMA frase curta (até 20 palavras) que justifique a resposta correta"
     : "um flashcard com a frente (pergunta ou termo curto) e o verso (resposta clara e curta)";
@@ -123,7 +134,9 @@ function buildPrompt({ mode, topic, level, context, facts, previous, index, tota
         (context ? `Contexto do aluno: ${context}\n` : "") +
         (facts ? `\nTexto de referência (Wikipédia, "${facts.title}"):\n"""\n${facts.text}\n"""\n` : "") +
         `\nCrie ${shape}. Esta é a pergunta ${index + 1} de ${total}; ` +
-        `cubra um aspecto diferente do tema.${avoid}` +
+        `cubra um aspecto diferente do tema.` +
+        (focus ? `\nFaça a pergunta SOBRE este trecho do texto e responda com o que ele diz: "${focus}"` : "") +
+        avoid +
         (mode === "quiz"
           ? `\n\nFormato exato (JSON):\n{"question":"...","correctAnswer":"...","wrongAnswers":["...","...","..."],"explanation":"..."}\n` +
             `"wrongAnswers" deve ter EXATAMENTE 3 textos, nenhum igual a "correctAnswer".\n` +
@@ -152,7 +165,8 @@ export async function generateItem(opts, attempts = 3) {
     try {
       const res = await engine.chat.completions.create({
         messages,
-        temperature: i === 0 ? 0.4 : 0.3, // fatos: quanto menor, menos invenção // nas novas tentativas, menos criatividade = formato mais estável
+        // fatos: baixa = menos invenção. Se a falha foi repetição, sobe para variar; se foi formato, desce.
+        temperature: /repetiu/.test(lastErr?.message ?? "") ? 0.9 : i === 0 ? 0.5 : 0.3,
         max_tokens: 400, // com alternativas/explicação curtas o JSON cabe; menos tokens = mais rápido
         response_format: { type: "json_object", schema: JSON.stringify(SCHEMAS[opts.mode]) },
       });
@@ -160,6 +174,7 @@ export async function generateItem(opts, attempts = 3) {
       usage = res.usage;
       // última tentativa: aceita quiz com só 2 erradas distintas (3 opções) em vez de falhar de vez
       const item = validate(opts.mode, JSON.parse(raw), i === attempts - 1);
+      if (isRepeat(item.question ?? item.front, opts.previous)) throw new Error("repetiu uma pergunta já feita; escolha OUTRO trecho/aspecto");
       hooks.onLog({ prompt: messages, output: raw, usage, ms: performance.now() - t0, attempt: i + 1, attempts });
       return item;
     } catch (e) {
@@ -169,6 +184,19 @@ export async function generateItem(opts, attempts = 3) {
     }
   }
   throw lastErr;
+}
+
+// Mesma pergunta/frente de antes (igual, uma contida na outra, ou quase as mesmas palavras)?
+const words = (t) => new Set(norm(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3));
+export function isRepeat(text, previous) {
+  const n = norm(text), a = words(text);
+  return previous.some((q) => {
+    const m = norm(q);
+    if (!m) return false;
+    if (n === m || (Math.min(n.length, m.length) >= 12 && (n.includes(m) || m.includes(n)))) return true;
+    const b = words(q), common = [...a].filter((w) => b.has(w)).length;
+    return Math.min(a.size, b.size) > 0 && common / Math.min(a.size, b.size) >= 0.7;
+  });
 }
 
 // Modelos pequenos às vezes devolvem alternativas como objetos, com mais de 4 itens
