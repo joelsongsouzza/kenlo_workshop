@@ -425,10 +425,12 @@ async function finish() {
 function initBackstage() {
   $("btn-backstage").onclick = () => $("backstage").classList.toggle("hidden");
   $("btn-close-backstage").onclick = () => $("backstage").classList.add("hidden");
-  hooks.onLog = ({ prompt, output, usage, ms }) => {
+  hooks.onLog = ({ prompt, output, usage, ms, attempt, attempts, error }) => {
     $("bs-prompt").textContent = prompt.map((m) => `[${m.role}]\n${m.content}`).join("\n\n");
     $("bs-output").textContent = output;
-    $("bs-time").textContent = (ms / 1000).toFixed(1) + " s";
+    $("bs-time").textContent = (ms / 1000).toFixed(1) + " s" +
+      (attempt ? ` · tentativa ${attempt}/${attempts}` : "") +
+      (error ? ` · FALHOU: ${error}` : "");
     const tps = usage?.extra?.decode_tokens_per_s;
     $("bs-speed").textContent = tps ? tps.toFixed(1) + " tokens/s" : (usage ? usage.completion_tokens + " tokens" : "—");
   };

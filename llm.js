@@ -104,7 +104,7 @@ const SCHEMAS = {
 
 function buildPrompt({ mode, topic, level, context, previous, index, total }) {
   const shape = mode === "quiz"
-    ? "uma pergunta de múltipla escolha com 4 alternativas curtas, o índice (0 a 3) da alternativa correta e uma explicação de 1 ou 2 frases"
+    ? "uma pergunta de múltipla escolha com 4 alternativas curtas (até 6 palavras cada), o índice (0 a 3) da alternativa correta e uma explicação de UMA frase curta (até 20 palavras)"
     : "um flashcard com a frente (pergunta ou termo curto) e o verso (resposta clara e curta)";
   const avoid = previous.length
     ? `\nNÃO repita nem reformule estas perguntas já feitas:\n- ${previous.join("\n- ")}`
@@ -135,18 +135,23 @@ export async function generateItem(opts, attempts = 5) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     const t0 = performance.now();
+    let raw = "", usage = null;
     try {
       const res = await engine.chat.completions.create({
         messages,
         temperature: i === 0 ? 0.8 : 0.5, // nas novas tentativas, menos criatividade = formato mais estável
-        max_tokens: 600, // 400 podia cortar o JSON no meio
+        max_tokens: 400, // com alternativas/explicação curtas o JSON cabe; menos tokens = mais rápido
         response_format: { type: "json_object", schema: JSON.stringify(SCHEMAS[opts.mode]) },
       });
-      const raw = res.choices[0].message.content;
-      hooks.onLog({ prompt: messages, output: raw, usage: res.usage, ms: performance.now() - t0 });
-      return validate(opts.mode, JSON.parse(raw));
+      raw = res.choices[0].message.content;
+      usage = res.usage;
+      const item = validate(opts.mode, JSON.parse(raw));
+      hooks.onLog({ prompt: messages, output: raw, usage, ms: performance.now() - t0, attempt: i + 1, attempts });
+      return item;
     } catch (e) {
       lastErr = e; // JSON inválido ou formato errado: tenta de novo
+      // registra a tentativa que falhou, para aparecer nos Bastidores
+      hooks.onLog({ prompt: messages, output: raw, usage, ms: performance.now() - t0, attempt: i + 1, attempts, error: e.message });
     }
   }
   throw lastErr;
