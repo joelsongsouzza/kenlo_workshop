@@ -132,9 +132,13 @@ function buildPrompt({ mode, topic, level, context, previous, index, total }) {
 
 // 3 tentativas: em GPU lenta cada uma custa minutos, melhor mostrar o erro logo do que girar 5x.
 export async function generateItem(opts, attempts = 3) {
-  const messages = buildPrompt(opts);
+  const base = buildPrompt(opts);
   let lastErr;
   for (let i = 0; i < attempts; i++) {
+    // nas novas tentativas, diz ao modelo o que deu errado na anterior
+    const messages = lastErr
+      ? [...base.slice(0, -1), { ...base[base.length - 1], content: base[base.length - 1].content + `\n\nATENÇÃO: a resposta anterior foi rejeitada (${lastErr.message}). Corrija.` }]
+      : base;
     const t0 = performance.now();
     let raw = "", usage = null;
     try {
@@ -146,7 +150,8 @@ export async function generateItem(opts, attempts = 3) {
       });
       raw = res.choices[0].message.content;
       usage = res.usage;
-      const item = validate(opts.mode, JSON.parse(raw));
+      // última tentativa: aceita quiz com só 2 erradas distintas (3 opções) em vez de falhar de vez
+      const item = validate(opts.mode, JSON.parse(raw), i === attempts - 1);
       hooks.onLog({ prompt: messages, output: raw, usage, ms: performance.now() - t0, attempt: i + 1, attempts });
       return item;
     } catch (e) {
@@ -169,7 +174,7 @@ function asText(o) {
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const norm = (t) => t.toLowerCase().replace(/\s+/g, " ").trim();
 
-function validate(mode, d) {
+function validate(mode, d, lenient = false) {
   if (mode === "quiz") {
     const question = asText(d.question ?? d.pergunta);
     if (!question) throw new Error("quiz inválido: sem pergunta");
@@ -181,7 +186,7 @@ function validate(mode, d) {
     // descarta erradas repetidas ou iguais à correta (senão haveria duas respostas certas)
     const seen = new Set([norm(correct)]);
     wrong = wrong.filter((w) => !seen.has(norm(w)) && seen.add(norm(w)));
-    if (wrong.length < 3) throw new Error(`quiz inválido: só ${wrong.length} alternativas erradas distintas`);
+    if (wrong.length < (lenient ? 2 : 3)) throw new Error(`quiz inválido: só ${wrong.length} alternativas erradas distintas`);
     // A posição da certa é sorteada aqui: o modelo nunca precisa "apontar" um índice.
     const options = shuffle([correct, ...wrong.slice(0, 3)]);
     return { question, options, correctIndex: options.indexOf(correct), explanation: asText(d.explanation ?? d.explicacao) };
