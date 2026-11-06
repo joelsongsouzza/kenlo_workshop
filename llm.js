@@ -180,13 +180,13 @@ function validate(mode, d) {
 // 3) Texto livre com STREAMING (explicações e feedback final).
 //    `onToken` recebe o texto acumulado a cada pedacinho gerado.
 // ---------------------------------------------------------------------
-export async function streamText(messages, onToken, max_tokens = 350) {
+export async function streamText(messages, onToken, max_tokens = 350, temperature = 0.7) {
   const t0 = performance.now();
   const stream = await engine.chat.completions.create({
     messages,
     stream: true,
     stream_options: { include_usage: true },
-    temperature: 0.7,
+    temperature,
     max_tokens,
   });
   let text = "", usage = null;

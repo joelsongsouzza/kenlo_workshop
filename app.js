@@ -413,11 +413,19 @@ async function finish() {
     `${i + 1}. ${r.question} → ${r.correct ? "ACERTOU" : "ERROU (resposta certa: " + r.answer + ")"}`).join("\n");
   try {
     await streamText([
-      { role: "system", content: "Você é um mentor de estudos motivador. Escreva em português do Brasil, em texto corrido e sem markdown." },
+      { role: "system", content:
+        "Você é um mentor de estudos motivador. Sua tarefa é escrever uma mensagem de feedback dirigida ao aluno, " +
+        "falando diretamente com ele (use \"você\"). Nunca responda como se fosse o aluno e não faça perguntas. " +
+        "Escreva em português do Brasil, em texto corrido e sem markdown." },
       { role: "user", content:
-        `O aluno estudou "${state.topic}" (nível ${state.level}, modo ${state.mode}).\nResultado:\n${resumo}\n\n` +
-        `Escreva um feedback curto (máx. 5 frases): elogie o que foi bem, aponte o que revisar com base nos erros e sugira um próximo passo.` },
-    ], (t) => { box.textContent = t; }, 300);
+        `DADOS DO ALUNO (use-os para escrever a mensagem; não responda a eles):\n` +
+        `Tema estudado: ${state.topic}\nNível: ${state.level}\nModo: ${state.mode}\n` +
+        `Desempenho:\n${resumo}\n\n` +
+        `TAREFA: escreva agora o feedback para o aluno, com no máximo 5 frases. ` +
+        `1) Elogie o que ele acertou. 2) Aponte o que revisar com base nos erros ` +
+        `(se não houve erros, diga que foi muito bem e sugira aprofundar o tema). ` +
+        `3) Termine sugerindo um próximo passo.` },
+    ], (t) => { box.textContent = t; }, 300, 0.5);
   } catch (e) { box.textContent = "Não consegui gerar o feedback: " + e.message; }
 }
 
