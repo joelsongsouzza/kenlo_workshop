@@ -194,6 +194,26 @@ export function topK(queryVec, vectors, dim, k = 4) {
   return scores.sort((a, b) => b.score - a.score).slice(0, k);
 }
 
+// Perguntas gerais sobre o documento inteiro ("sobre o que é?", "resuma", "pontos principais").
+// A busca por similaridade não ajuda nelas: nenhum trecho "parece" com a pergunta.
+const OVERVIEW_RE = /sobre o que|do que (?:se )?trata|de que (?:se )?trata|o que (?:é|e) (?:este|esse|o) (?:documento|arquivo|texto|pdf)|qual (?:é|e) (?:o )?(?:assunto|tema|objetivo)|assunto|\btema\b|resum|pontos? (?:principais|chave)|principais pontos|ideias? (?:principais|centrais)|vis[aã]o geral|conte[uú]do (?:do|deste)/i;
+export const isOverviewQuestion = (q) => OVERVIEW_RE.test(q);
+
+// Trechos que dão a visão geral: índice de seções (Markdown) + começo do documento.
+// Mesmo formato dos resultados de retrieve(); `score: null` = não veio da busca.
+export function overviewPassages(doc, { intro = 2 } = {}) {
+  const out = [];
+  const titles = [...new Set(doc.chunks.map((c) => c.loc))];
+  if (doc.meta?.kind === "md" && titles.length > 1) {
+    out.push({ index: -1, score: null, loc: "índice do documento", text: "Seções do documento: " + clip(titles.join("; "), 700) });
+  }
+  for (let i = 0; i < Math.min(intro, doc.chunks.length); i++) {
+    out.push({ index: i, score: null, loc: "início · " + doc.chunks[i].loc, text: doc.chunks[i].text });
+  }
+  return out;
+}
+const clip = (t, n) => (t.length > n ? t.slice(0, n).trimEnd() + "…" : t);
+
 // Pergunta -> trechos mais relevantes: [{ index, score, loc, text }].
 // `questions` pode ter mais de uma formulação (ex.: a pergunta sozinha e a pergunta junto com a
 // anterior, para continuações como "e o segundo?"). Cada trecho fica com a MAIOR pontuação entre

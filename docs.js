@@ -6,7 +6,7 @@
 //                   -> WebLLM responde só com eles (llm.js: askDocument)
 // =====================================================================
 import { hasWebGPU, loadModel, askDocument, stopGeneration, currentModel } from "./llm.js";
-import { indexFile, retrieve, fileKind } from "./rag.js";
+import { indexFile, retrieve, fileKind, isOverviewQuestion, overviewPassages } from "./rag.js";
 import { loadEmbedder, embedderReady } from "./embed.js";
 import { docStore } from "./docstore.js";
 import { chatHistory } from "./chat-history.js";
@@ -269,7 +269,7 @@ function addBot(restored = false) {
     sources(hits) {
       srcs.classList.remove("hidden");
       srcs.innerHTML = `<small>📎 Trechos recuperados pela busca por similaridade (clique para ler):</small>` +
-        hits.map((h, i) => `<details class="src"><summary>[${i + 1}] ${esc(h.loc)} <span class="score">· similaridade ${h.score.toFixed(2)}</span></summary><p>${esc(h.text)}</p></details>`).join("");
+        hits.map((h, i) => `<details class="src"><summary>[${i + 1}] ${esc(h.loc)} <span class="score">· ${h.score == null ? "visão geral" : "similaridade " + h.score.toFixed(2)}</span></summary><p>${esc(h.text)}</p></details>`).join("");
     },
   };
 }
@@ -290,7 +290,14 @@ async function ask(question) {
     // pergunta curta de continuação ("e o segundo?") não diz o assunto: também busca junto com a anterior
     const queries = history.length && question.length < 40 ? [question, `${history[history.length - 1].q} ${question}`] : [question];
     const t0 = performance.now();
-    const hits = await retrieve(queries, doc, 4);
+    let hits = await retrieve(queries, doc, 4);
+    // pergunta geral ("sobre o que é?"): a busca não acha nada específico, então
+    // o começo e o índice do documento vêm na frente, e a busca completa o resto
+    if (isOverviewQuestion(question)) {
+      const intro = overviewPassages(doc);
+      const seen = new Set(intro.map((p) => p.index));
+      hits = [...intro, ...hits.filter((h) => !seen.has(h.index)).slice(0, 3)];
+    }
     bot.sources(hits);
     const searchMs = performance.now() - t0;
 
