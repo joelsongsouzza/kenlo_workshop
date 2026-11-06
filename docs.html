@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StudyQuest · converse com seus documentos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <script>
+    // aplica o tema antes de pintar a página (evita o "flash" branco)
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("studyquest-theme"); } catch (e) {}
+      if (t !== "dark" && t !== "light") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">🦉 StudyQuest</a>
+    <nav class="nav" aria-label="Telas">
+      <a href="index.html">🎯 Quiz</a>
+      <a href="simplifier.html">✍️ Simplificar</a>
+      <a href="docs.html" aria-current="page">📄 Documentos</a>
+    </nav>
+    <div class="stats">
+      <button id="btn-backstage" class="chip chip-btn" title="Bastidores (para devs)">🛠️ Bastidores</button>
+      <button id="btn-theme" class="chip chip-btn" title="Alternar modo escuro" aria-label="Alternar modo escuro">
+        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <button id="btn-settings" class="chip chip-btn" title="Configurações" aria-label="Configurações">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="app">
+
+    <!-- Escolher documento -->
+    <section id="screen-pick" class="screen">
+      <div class="card">
+        <h1>📄 Converse com seus documentos</h1>
+        <p class="sub">Carregue um PDF ou Markdown e faça perguntas sobre ele. A IA responde só com o que está no documento e mostra de onde tirou.</p>
+
+        <div class="privacy">
+          <span>🔒</span>
+          <span><b>Nenhum dado sai da sua máquina.</b> O arquivo é lido, dividido e transformado em embeddings aqui no navegador, e a resposta é escrita pelo WebLLM na sua GPU. A rede só é usada para baixar os modelos e as bibliotecas, uma vez.</span>
+        </div>
+
+        <label class="drop" id="drop" for="file">
+          <b>Solte um arquivo aqui ou clique para escolher</b>
+          <span>PDF, Markdown (.md) ou texto (.txt) · até 25 MB</span>
+          <input id="file" type="file" accept=".pdf,.md,.markdown,.txt,application/pdf,text/markdown,text/plain">
+        </label>
+        <button id="btn-sample" class="btn btn-ghost btn-big" style="margin-top:12px">📘 Testar com o README do StudyQuest</button>
+        <div id="pick-error" class="error hidden" style="white-space:pre-wrap"></div>
+      </div>
+
+      <div id="docs-library" class="card hidden" style="margin-top:16px">
+        <h1 style="font-size:22px">📚 Meus documentos</h1>
+        <p class="sub">Já indexados neste navegador. Abrem na hora, sem ler o arquivo nem gerar embeddings de novo.</p>
+        <div id="docs-list" class="lib-list"></div>
+      </div>
+    </section>
+
+    <!-- Indexando -->
+    <section id="screen-index" class="screen hidden card center">
+      <div class="owl">🦉</div>
+      <h1 id="index-title">Lendo o documento...</h1>
+      <p class="sub" id="index-file"></p>
+      <div class="bar"><div id="index-bar" class="bar-fill"></div></div>
+      <small id="index-detail" class="muted"></small>
+      <p class="sub" style="margin-top:18px;font-size:14px">Tudo acontece neste computador. Na primeira vez o modelo de embeddings (~120 MB) precisa ser baixado.</p>
+    </section>
+
+    <!-- Chat -->
+    <section id="screen-chat" class="screen hidden">
+      <div class="card">
+        <div class="chat-head">
+          <div class="grow">
+            <h1 id="chat-doc" style="font-size:22px;overflow-wrap:anywhere"></h1>
+            <p class="muted" id="chat-meta" style="margin:0;font-size:13px"></p>
+          </div>
+          <button id="btn-switch" class="btn btn-ghost" style="padding:10px 14px;font-size:13px">Trocar</button>
+        </div>
+        <p id="chat-note" class="chat-note hidden"></p>
+
+        <div id="chat-log" class="chat-log"></div>
+        <div id="chat-suggestions" class="chips"></div>
+
+        <form id="chat-form" class="chat-form" autocomplete="off">
+          <input id="chat-input" type="text" maxlength="300" placeholder="Pergunte algo sobre o documento...">
+          <button id="btn-send" class="btn btn-green" type="submit">Enviar</button>
+          <button id="btn-stop" class="btn btn-red hidden" type="button">Parar</button>
+        </form>
+        <p class="muted" style="margin:14px 0 0;font-size:13px">🧠 Modelo: <b id="current-model-label">—</b> · <a href="#" id="link-settings">trocar</a> · <a href="#" id="btn-clear-chat">limpar conversa</a></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Configurações -->
+  <div id="settings" class="modal hidden">
+    <div class="modal-card">
+      <div class="backstage-head" style="color:var(--ink)">
+        <h1 style="margin:0;font-size:22px">⚙️ Configurações</h1>
+        <button id="btn-close-settings" class="icon-btn">✕</button>
+      </div>
+      <label style="margin-top:12px">Modelo de IA</label>
+      <p class="sub" style="font-size:14px;margin-bottom:10px">O modelo é baixado para o seu navegador uma vez e fica em cache. A troca vale a partir da próxima pergunta. A escolha é a mesma do quiz.</p>
+      <div id="model-list" class="model-list"></div>
+      <button id="btn-save-settings" class="btn btn-green btn-big">SALVAR</button>
+    </div>
+  </div>
+
+  <!-- Painel de bastidores -->
+  <aside id="backstage" class="backstage hidden">
+    <div class="backstage-head">
+      <b>🛠️ Bastidores</b>
+      <button id="btn-close-backstage" class="icon-btn">✕</button>
+    </div>
+    <dl>
+      <dt>Modelo</dt><dd id="bs-model">—</dd>
+      <dt>Velocidade</dt><dd id="bs-speed">—</dd>
+      <dt>Última chamada</dt><dd id="bs-time">—</dd>
+    </dl>
+    <h4>Prompt enviado</h4>
+    <pre id="bs-prompt">—</pre>
+    <h4>Resposta crua do modelo</h4>
+    <pre id="bs-output">—</pre>
+  </aside>
+
+  <script type="module" src="docs.js"></script>
+</body>
+</html>
