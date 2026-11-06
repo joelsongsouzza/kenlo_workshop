@@ -59,6 +59,15 @@
         <div id="pick-error" class="error hidden" style="white-space:pre-wrap"></div>
       </div>
 
+      <div id="chats" class="card hidden" style="margin-top:16px">
+        <div class="sim-result-head">
+          <h1 style="font-size:22px;margin:0">💬 Minhas conversas</h1>
+          <button id="btn-clear-chats" class="icon-btn" style="font-size:14px;font-family:inherit;font-weight:800">Limpar tudo</button>
+        </div>
+        <p class="sub" style="margin-top:6px">Ficam salvos só o nome do documento e as suas perguntas e respostas, neste navegador. O conteúdo do documento não é guardado nas conversas.</p>
+        <div id="chats-list" class="lib-list"></div>
+      </div>
+
       <div id="docs-library" class="card hidden" style="margin-top:16px">
         <h1 style="font-size:22px">📚 Meus documentos</h1>
         <p class="sub">Já indexados neste navegador. Abrem na hora, sem ler o arquivo nem gerar embeddings de novo.</p>
@@ -96,7 +105,7 @@
           <button id="btn-send" class="btn btn-green" type="submit">Enviar</button>
           <button id="btn-stop" class="btn btn-red hidden" type="button">Parar</button>
         </form>
-        <p class="muted" style="margin:14px 0 0;font-size:13px">🧠 Modelo: <b id="current-model-label">—</b> · <a href="#" id="link-settings">trocar</a> · <a href="#" id="btn-clear-chat">limpar conversa</a></p>
+        <p id="chat-foot" class="muted" style="margin:14px 0 0;font-size:13px">🧠 Modelo: <b id="current-model-label">—</b> · <a href="#" id="link-settings">trocar</a> · <a href="#" id="btn-clear-chat">apagar conversa</a></p>
       </div>
     </section>
   </main>

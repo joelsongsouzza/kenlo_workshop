@@ -9,6 +9,7 @@ import { hasWebGPU, loadModel, askDocument, stopGeneration, currentModel } from 
 import { indexFile, retrieve, fileKind } from "./rag.js";
 import { loadEmbedder, embedderReady } from "./embed.js";
 import { docStore } from "./docstore.js";
+import { chatHistory } from "./chat-history.js";
 import { $, esc, getModel, initTheme, initSettings, initBackstage } from "./common.js";
 
 const SCREENS = ["pick", "index", "chat"];
@@ -17,6 +18,7 @@ const SUGGESTIONS = ["Sobre o que é este documento?", "Quais são os pontos pri
 
 let doc = null;        // { meta, chunks, vectors, dim } do documento aberto
 let history = [];      // [{ q, a }] da conversa atual
+let chatId = null;     // id da conversa no histórico (criado na 1ª resposta)
 let busy = false;
 let stopped = false;
 
@@ -80,10 +82,15 @@ function initPick() {
   ["dragover", "drop"].forEach((ev) => window.addEventListener(ev, (e) => e.preventDefault()));
 }
 
-// ---------- biblioteca ----------
-async function renderLibrary() {
+// ---------- biblioteca e conversas ----------
+async function refreshPick() {
   let docs = [];
   try { docs = await docStore.list(); } catch { /* IndexedDB indisponível (modo privado, etc.) */ }
+  renderLibrary(docs);
+  renderChats(new Set(docs.map((m) => m.id)));
+}
+
+function renderLibrary(docs) {
   $("docs-library").classList.toggle("hidden", docs.length === 0);
   const list = $("docs-list");
   list.innerHTML = "";
@@ -101,18 +108,85 @@ async function renderLibrary() {
       <button class="icon-btn doc-del" title="Excluir" aria-label="Excluir">🗑</button>`;
     row.querySelector(".doc-open").onclick = () => openDoc(m.id);
     row.querySelector(".doc-del").onclick = async () => {
-      if (confirm(`Excluir "${m.name}" e o índice dele deste navegador?`)) { await docStore.remove(m.id); renderLibrary(); }
+      if (confirm(`Excluir "${m.name}" e o índice dele deste navegador? As conversas salvas continuam.`)) { await docStore.remove(m.id); refreshPick(); }
+    };
+    list.appendChild(row);
+  });
+}
+
+// Conversas salvas. `have`: ids dos documentos que ainda estão indexados (dá para continuar).
+function renderChats(have) {
+  const chats = chatHistory.list();
+  $("chats").classList.toggle("hidden", chats.length === 0);
+  const list = $("chats-list");
+  list.innerHTML = "";
+  chats.forEach((c) => {
+    const n = c.messages.length;
+    const canContinue = have.has(c.docId);
+    const meta = [
+      `${n} ${n === 1 ? "pergunta" : "perguntas"}`,
+      new Date(c.updatedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
+      canContinue ? "" : "documento não está mais aqui · só leitura",
+    ].filter(Boolean).join(" · ");
+    const row = document.createElement("div");
+    row.className = "lib-item";
+    row.innerHTML = `<span class="grow">${esc(c.docName)}<small>${esc(meta)}</small><small>↳ ${esc(clip(c.messages[n - 1].q, 80))}</small></span>
+      <button class="btn btn-green chat-open">${canContinue ? "Continuar" : "Ver"}</button>
+      <button class="icon-btn chat-del" title="Excluir" aria-label="Excluir">🗑</button>`;
+    row.querySelector(".chat-open").onclick = () => openChat(c.id, canContinue);
+    row.querySelector(".chat-del").onclick = () => {
+      if (confirm(`Excluir a conversa sobre "${c.docName}"?`)) { chatHistory.remove(c.id); refreshPick(); }
     };
     list.appendChild(row);
   });
 }
 
 // ---------- chat ----------
-async function openDoc(id, note = "") {
-  const d = await docStore.get(id);
-  if (!d) { show("pick"); renderLibrary(); return pickError("Não encontrei esse documento no navegador."); }
-  doc = d;
+// Mostra a conversa salva; com o documento ainda indexado, dá para continuar perguntando.
+async function openChat(id, canContinue) {
+  const c = chatHistory.get(id);
+  if (!c) return refreshPick();
+  if (canContinue && await openDoc(c.docId, "", c)) return;
+  openReadOnly(c);
+}
+
+function openReadOnly(c) {
+  doc = null;
   history = [];
+  chatId = null;
+  $("chat-doc").textContent = c.docName;
+  $("chat-meta").textContent = `💬 ${c.messages.length} ${c.messages.length === 1 ? "pergunta" : "perguntas"} · só leitura`;
+  setNote("O documento não está mais neste navegador, então não dá para continuar. Para perguntar de novo, carregue o arquivo outra vez.");
+  renderMessages(c.messages);
+  $("chat-suggestions").innerHTML = "";
+  $("chat-form").classList.add("hidden");
+  $("chat-foot").classList.add("hidden");
+  show("chat");
+}
+
+function renderMessages(messages) {
+  $("chat-log").innerHTML = "";
+  messages.forEach((m) => {
+    addUser(m.q, true);
+    const bot = addBot(true);
+    bot.text(m.a);
+  });
+}
+
+// Devolve true se abriu. `chat`: conversa salva para continuar (opcional).
+async function openDoc(id, note = "", chat = null) {
+  const d = await docStore.get(id);
+  if (!d) {
+    if (chat) return false;
+    show("pick"); refreshPick();
+    pickError("Não encontrei esse documento no navegador.");
+    return false;
+  }
+  doc = d;
+  history = chat ? chat.messages.map((m) => ({ q: m.q, a: m.a })) : [];
+  chatId = chat ? chat.id : null;
+  $("chat-form").classList.remove("hidden");
+  $("chat-foot").classList.remove("hidden");
   docStore.touch(id).catch(() => {});
   $("chat-doc").textContent = d.meta.name;
   $("chat-meta").textContent = [
@@ -121,7 +195,7 @@ async function openDoc(id, note = "") {
     `${d.meta.chunks} trechos`,
     d.meta.truncated ? `⚠️ ${d.meta.truncated}` : "",
   ].filter(Boolean).join(" · ");
-  $("chat-log").innerHTML = "";
+  renderMessages(history);
   setNote(note);
   renderSuggestions();
   show("chat");
@@ -132,6 +206,7 @@ async function openDoc(id, note = "") {
     loadEmbedder((f, t) => setNote(`🧬 Carregando o modelo de embeddings... ${t}`))
       .then(() => setNote(note), () => setNote(note));
   }
+  return true;
 }
 
 function setNote(text) {
@@ -161,22 +236,23 @@ function setBusy(on) {
   $("btn-switch").disabled = on;
 }
 
-function addUser(text) {
+function addUser(text, quiet = false) {
   const el = document.createElement("div");
   el.className = "msg msg-user";
   el.textContent = text;
   $("chat-log").appendChild(el);
-  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  if (!quiet) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 // Mensagem da IA: status, texto (com citações [n]) e trechos usados
-function addBot() {
+// `restored`: resposta vinda do histórico (sem os trechos: as citações [n] ficam só como marcação)
+function addBot(restored = false) {
   const el = document.createElement("div");
-  el.className = "msg msg-bot";
+  el.className = "msg msg-bot" + (restored ? " restored" : "");
   el.innerHTML = `<small class="bot-status"></small><div class="bot-text"></div><div class="srcs hidden"></div>`;
   $("chat-log").appendChild(el);
   const status = el.querySelector(".bot-status"), text = el.querySelector(".bot-text"), srcs = el.querySelector(".srcs");
-  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  if (!restored) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 
   // [1] ou [1, 2] viram botões que abrem o trecho correspondente
   const cites = (t) => esc(t).replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (_, nums) =>
@@ -240,6 +316,9 @@ async function ask(question) {
     if (stopped) bot.status("⏹ interrompido");
     else {
       history.push({ q: question, a: answer.trim() });
+      // salva a conversa (só nome do documento + perguntas e respostas)
+      chatId = chatId || chatHistory.newId();
+      chatHistory.save({ id: chatId, docId: doc.meta.id, docName: doc.meta.name, messages: history });
       bot.status(`✨ busca ${(searchMs / 1000).toFixed(1)} s · resposta ${((performance.now() - t1) / 1000).toFixed(1)} s`);
     }
   } catch (e) {
@@ -253,13 +332,19 @@ async function ask(question) {
 function initChat() {
   $("chat-form").onsubmit = (e) => { e.preventDefault(); ask($("chat-input").value); };
   $("btn-stop").onclick = () => { stopped = true; stopGeneration(); };
-  $("btn-switch").onclick = () => { if (!busy) { pickError(""); show("pick"); renderLibrary(); } };
+  $("btn-switch").onclick = () => { if (!busy) { pickError(""); show("pick"); refreshPick(); } };
   $("btn-clear-chat").onclick = (e) => {
     e.preventDefault();
     if (busy) return;
+    if (history.length && !confirm("Apagar esta conversa, inclusive do histórico?")) return;
+    if (chatId) chatHistory.remove(chatId);
     history = [];
+    chatId = null;
     $("chat-log").innerHTML = "";
     renderSuggestions();
+  };
+  $("btn-clear-chats").onclick = () => {
+    if (confirm("Apagar todas as conversas salvas?")) { chatHistory.clear(); refreshPick(); }
   };
 }
 
@@ -269,5 +354,5 @@ initBackstage();
 initSettings();
 initPick();
 initChat();
-renderLibrary();
+refreshPick();
 show("pick");

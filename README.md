@@ -23,11 +23,13 @@ Arraste esta pasta no Netlify (ou `netlify deploy --prod --dir .`).
 - `rag.js` — lê o arquivo (PDF com [pdf.js](https://mozilla.github.io/pdf.js/); Markdown por seção), divide em trechos de ~900 caracteres e busca os mais parecidos com a pergunta por cosseno.
 - `embed.js` — embeddings **locais** com [Transformers.js](https://github.com/xenova/transformers.js) (`multilingual-e5-small`, ~120 MB, roda em WebAssembly). É a única parte que não usa o WebLLM.
 - `docstore.js` — índice dos documentos (trechos + vetores) no IndexedDB. Reabrir um documento é instantâneo; subir o mesmo arquivo de novo reaproveita o índice (identificado por SHA-256).
+- `chat-history.js` — histórico das conversas do chat com documentos no `localStorage` (até 30 conversas). Salva **só o nome do documento e as perguntas e respostas**, nunca o conteúdo do documento nem os trechos recuperados. Se o documento ainda estiver indexado dá para **Continuar** a conversa; senão ela abre em **Ver** (só leitura).
 - `common.js` — o que as duas telas compartilham: tema, escolha do modelo (a mesma nas duas) e Bastidores.
 - `style.css`, `index.html` — visual.
 
 ## Privacidade do chat com documentos
 O arquivo, os trechos, os vetores e as perguntas **nunca saem do navegador**. A rede só é usada para baixar bibliotecas (jsDelivr) e modelos (Hugging Face), uma vez cada. Para provar: abra o DevTools → Rede, carregue um documento e pergunte: só aparecem `GET`s de download, nenhum envio.
+As conversas salvas têm só nome do documento, perguntas e respostas (as respostas podem citar trechos do texto). Ficam no `localStorage` deste navegador, e dá para apagá-las uma a uma, ou todas, na tela.
 Limites: PDFs até 25 MB e 300 páginas, até 800 trechos; PDF escaneado (só imagem) não tem texto para ler, e não há OCR.
 
 ## Dicas para a apresentação
