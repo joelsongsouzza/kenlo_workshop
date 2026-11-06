@@ -42,6 +42,19 @@ function registerStudyDay(xpGained) {
   renderStats();
 }
 
+// ---------- tema (claro/escuro) ----------
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $("btn-theme").setAttribute("aria-pressed", String(t === "dark"));
+}
+function toggleTheme() {
+  const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(t);
+  try { localStorage.setItem("studyquest-theme", t); } catch {}
+}
+$("btn-theme").onclick = toggleTheme;
+applyTheme(document.documentElement.dataset.theme || "light");
+
 // ---------- navegação ----------
 function show(name) {
   SCREENS.forEach((n) => $("screen-" + n).classList.toggle("hidden", n !== name));
