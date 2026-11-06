@@ -124,7 +124,12 @@ function buildPrompt({ mode, topic, level, context, previous, index, total }) {
         `cubra um aspecto diferente do tema.${avoid}` +
         (mode === "quiz"
           ? `\n\nFormato exato (JSON):\n{"question":"...","correctAnswer":"...","wrongAnswers":["...","...","..."],"explanation":"..."}\n` +
-            `"wrongAnswers" deve ter EXATAMENTE 3 textos, nenhum igual a "correctAnswer".`
+            `"wrongAnswers" deve ter EXATAMENTE 3 textos, nenhum igual a "correctAnswer".\n` +
+            `Regras: a pergunta deve ser clara, completa e ter UMA única resposta correta; ` +
+            `as erradas devem ser do mesmo tipo da correta (se a correta é uma cidade, as erradas também são cidades). ` +
+            `Se não tiver certeza sobre o tema, faça uma pergunta básica e conhecida, nunca invente fatos.\n` +
+            `Exemplo (tema "Geografia"):\n` +
+            `{"question":"Qual é a capital da França?","correctAnswer":"Paris","wrongAnswers":["Londres","Madri","Roma"],"explanation":"Paris é a capital e maior cidade da França."}`
           : `\n\nFormato exato (JSON):\n{"front":"...","back":"..."}`),
     },
   ];
@@ -144,7 +149,7 @@ export async function generateItem(opts, attempts = 3) {
     try {
       const res = await engine.chat.completions.create({
         messages,
-        temperature: i === 0 ? 0.8 : 0.5, // nas novas tentativas, menos criatividade = formato mais estável
+        temperature: i === 0 ? 0.4 : 0.3, // fatos: quanto menor, menos invenção // nas novas tentativas, menos criatividade = formato mais estável
         max_tokens: 400, // com alternativas/explicação curtas o JSON cabe; menos tokens = mais rápido
         response_format: { type: "json_object", schema: JSON.stringify(SCHEMAS[opts.mode]) },
       });
