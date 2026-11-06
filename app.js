@@ -212,6 +212,7 @@ async function generateLoop(runId) {
         mode: state.mode, topic: state.topic, level: state.level, context: state.context, facts: state.facts,
         index: state.items.length, total: state.total,
         previous: state.items.map((i) => i.question || i.front),
+        previousAnswers: state.items.map((i) => i.options ? i.options[i.correctIndex] : i.back).filter(Boolean),
       });
       if (runId !== state.runId) return;
       state.items.push(item);

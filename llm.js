@@ -104,27 +104,47 @@ const SCHEMAS = {
 
 // Divide o texto em frases e entrega a cada pergunta um trecho DIFERENTE. Só dizer "cubra outro
 // aspecto" não basta: modelo pequeno com o mesmo texto repete a mesma pergunta.
-function focusFor(facts, index, total) {
+// `variant` desloca o trecho nas novas tentativas, para não repetir o que já foi rejeitado.
+function focusFor(facts, index, total, variant = 0) {
   const sentences = facts.text.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter((x) => x.length > 30);
   if (sentences.length < 2) return "";
   const per = Math.max(2, Math.floor(sentences.length / total));
-  const start = (index * per) % sentences.length;
+  const start = ((index + variant) * per) % sentences.length;
   return Array.from({ length: Math.min(per, sentences.length) }, (_, k) => sentences[(start + k) % sentences.length]).join(" ");
 }
 
-function buildPrompt({ mode, topic, level, context, facts, previous, index, total }) {
-  const focus = facts ? focusFor(facts, index, total) : "";
+// Cada pergunta recebe um ÂNGULO diferente. Sem isso (principalmente sem texto da Wikipédia) o prompt
+// das perguntas 1, 2, 3... é praticamente idêntico e o modelo pequeno devolve sempre a mesma pergunta.
+const ANGLES = [
+  "o conceito central: o que é / qual é a definição",
+  "história ou origem: quando, onde ou por quem surgiu",
+  "pessoas, nomes ou lugares importantes ligados ao tema",
+  "uma característica ou propriedade marcante",
+  "para que serve ou uma aplicação/exemplo prático",
+  "causa e consequência: por que acontece ou o que resulta disso",
+  "diferença ou comparação com algo parecido",
+  "um número, data ou fato específico e curioso",
+];
+// ponto de partida sorteado a cada rodada: a primeira pergunta também muda de um jogo para outro
+let angleOffset = Math.floor(Math.random() * ANGLES.length);
+
+function buildPrompt({ mode, topic, level, context, facts, previous, previousAnswers = [], index, total }, variant = 0) {
+  if (index === 0 && variant === 0) angleOffset = Math.floor(Math.random() * ANGLES.length);
+  const angle = ANGLES[(angleOffset + index + variant) % ANGLES.length];
+  const focus = facts ? focusFor(facts, index, total, variant) : "";
   const shape = mode === "quiz"
     ? "uma pergunta de múltipla escolha: a resposta correta (curta, até 6 palavras), exatamente 3 respostas ERRADAS mas plausíveis (também curtas, diferentes da correta) e uma explicação de UMA frase curta (até 20 palavras) que justifique a resposta correta"
     : "um flashcard com a frente (pergunta ou termo curto) e o verso (resposta clara e curta)";
   const avoid = previous.length
-    ? `\nNÃO repita nem reformule estas perguntas já feitas:\n- ${previous.join("\n- ")}`
+    ? `\n\nPERGUNTAS JÁ FEITAS (proibido repetir, reformular ou perguntar a mesma coisa de outro jeito):\n- ${previous.join("\n- ")}` +
+      (previousAnswers.length ? `\nRespostas já usadas (a nova resposta correta deve ser OUTRA): ${previousAnswers.join("; ")}` : "")
     : "";
   return [
     {
       role: "system",
       content: "Você é um professor paciente e preciso que cria material de estudo em português do Brasil. " +
-               "Seja factualmente correto. Responda SOMENTE com JSON válido." +
+               "Seja factualmente correto. Cada pergunta que você cria deve ser DIFERENTE das anteriores: " +
+               "outro assunto dentro do tema, outra resposta. Responda SOMENTE com JSON válido." +
                (facts ? " Use SOMENTE as informações do texto de referência; nunca acrescente fatos de fora dele." : ""),
     },
     {
@@ -133,8 +153,8 @@ function buildPrompt({ mode, topic, level, context, facts, previous, index, tota
         `Tema: ${topic}\nNível do aluno: ${level}\n` +
         (context ? `Contexto do aluno: ${context}\n` : "") +
         (facts ? `\nTexto de referência (Wikipédia, "${facts.title}"):\n"""\n${facts.text}\n"""\n` : "") +
-        `\nCrie ${shape}. Esta é a pergunta ${index + 1} de ${total}; ` +
-        `cubra um aspecto diferente do tema.` +
+        `\nCrie ${shape}. Esta é a pergunta ${index + 1} de ${total}.` +
+        `\nÂNGULO OBRIGATÓRIO desta pergunta: ${angle}.` +
         (focus ? `\nFaça a pergunta SOBRE este trecho do texto e responda com o que ele diz: "${focus}"` : "") +
         avoid +
         (mode === "quiz"
@@ -142,10 +162,8 @@ function buildPrompt({ mode, topic, level, context, facts, previous, index, tota
             `"wrongAnswers" deve ter EXATAMENTE 3 textos, nenhum igual a "correctAnswer".\n` +
             `Regras: a pergunta deve ser clara, completa e ter UMA única resposta correta; ` +
             `as erradas devem ser do mesmo tipo da correta (se a correta é uma cidade, as erradas também são cidades). ` +
-            `Se não tiver certeza sobre o tema, faça uma pergunta básica e conhecida, nunca invente fatos. ` +
-            `Não pergunte sobre etimologia nem "origem da palavra"; prefira Quem, Onde, Quando ou O que.\n` +
-            `Exemplo (tema "Geografia"):\n` +
-            `{"question":"Qual é a capital da França?","correctAnswer":"Paris","wrongAnswers":["Londres","Madri","Roma"],"explanation":"Paris é a capital e maior cidade da França."}`
+            `Se não tiver certeza, faça uma pergunta simples sobre o ÂNGULO acima, nunca invente fatos. ` +
+            `Não pergunte sobre etimologia nem "origem da palavra"; prefira Quem, Onde, Quando, Por que ou O que.`
           : `\n\nFormato exato (JSON):\n{"front":"...","back":"..."}`),
     },
   ];
@@ -153,20 +171,24 @@ function buildPrompt({ mode, topic, level, context, facts, previous, index, tota
 
 // 3 tentativas: em GPU lenta cada uma custa minutos, melhor mostrar o erro logo do que girar 5x.
 export async function generateItem(opts, attempts = 3) {
-  const base = buildPrompt(opts);
   let lastErr;
   for (let i = 0; i < attempts; i++) {
+    // Cada tentativa usa outro ângulo/trecho (variant = i): repetir o MESMO prompt só devolve a mesma pergunta.
+    const base = buildPrompt(opts, i);
     // nas novas tentativas, diz ao modelo o que deu errado na anterior
     const messages = lastErr
       ? [...base.slice(0, -1), { ...base[base.length - 1], content: base[base.length - 1].content + `\n\nATENÇÃO: a resposta anterior foi rejeitada (${lastErr.message}). Corrija.` }]
       : base;
+    const repeated = /repetiu/.test(lastErr?.message ?? "");
     const t0 = performance.now();
     let raw = "", usage = null;
     try {
       const res = await engine.chat.completions.create({
         messages,
-        // fatos: baixa = menos invenção. Se a falha foi repetição, sobe para variar; se foi formato, desce.
-        temperature: /repetiu/.test(lastErr?.message ?? "") ? 0.9 : i === 0 ? 0.5 : 0.3,
+        // com texto de referência: baixa = menos invenção; sem texto precisa de mais variedade.
+        // Se a falha foi repetição, sobe para variar; se foi formato, desce.
+        temperature: repeated ? 0.95 : lastErr ? 0.3 : opts.facts ? 0.6 : 0.8,
+        seed: Math.floor(Math.random() * 2 ** 31), // sem isso, prompts parecidos tendem à mesma saída
         max_tokens: 400, // com alternativas/explicação curtas o JSON cabe; menos tokens = mais rápido
         response_format: { type: "json_object", schema: JSON.stringify(SCHEMAS[opts.mode]) },
       });
@@ -174,7 +196,7 @@ export async function generateItem(opts, attempts = 3) {
       usage = res.usage;
       // última tentativa: aceita quiz com só 2 erradas distintas (3 opções) em vez de falhar de vez
       const item = validate(opts.mode, JSON.parse(raw), i === attempts - 1);
-      if (isRepeat(item.question ?? item.front, opts.previous)) throw new Error("repetiu uma pergunta já feita; escolha OUTRO trecho/aspecto");
+      if (isRepeat(item.question ?? item.front, opts.previous)) throw new Error(`repetiu uma pergunta já feita ("${item.question ?? item.front}"); faça sobre OUTRO ângulo`);
       hooks.onLog({ prompt: messages, output: raw, usage, ms: performance.now() - t0, attempt: i + 1, attempts });
       return item;
     } catch (e) {
