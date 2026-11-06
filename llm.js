@@ -16,12 +16,26 @@ export const MODEL_OPTIONS = [
 ];
 export const DEFAULT_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
 
-// true se os arquivos do modelo já estão no cache do navegador
+// ---------------------------------------------------------------------
+// Armazenamento do modelo. Por padrão o WebLLM usa a Cache API do navegador.
+// Em alguns computadores (antivírus, políticas da empresa, extensões) ela falha com
+// "Cache.add() encountered a network error". Nesse caso trocamos para IndexedDB
+// e lembramos a escolha.
+// ---------------------------------------------------------------------
+const IDB_KEY = "studyquest_idb";
+let useIDB = (() => { try { return localStorage.getItem(IDB_KEY) === "1"; } catch { return false; } })();
+const makeConfig = (idb) => ({ ...webllm.prebuiltAppConfig, useIndexedDBCache: idb });
+
+// true se os arquivos do modelo já estão guardados (em qualquer um dos dois armazenamentos)
 export async function isCached(id) {
-  try { return await webllm.hasModelInCache(id); } catch { return false; }
+  for (const idb of [false, true]) {
+    try { if (await webllm.hasModelInCache(id, makeConfig(idb))) return true; } catch {}
+  }
+  return false;
 }
 
 let engine = null;
+let engineIDB = false;
 let loadedModel = null;
 
 // Ganchos para o painel de bastidores
@@ -29,16 +43,32 @@ export const hooks = { onLog: () => {} };
 
 export const hasWebGPU = () => !!navigator.gpu;
 
-// 1) Baixa (ou lê do cache) e compila o modelo na GPU.
-export async function loadModel(modelId = DEFAULT_MODEL, onProgress = () => {}) {
-  if (engine && loadedModel === modelId) return;
-  if (engine) {
+async function create(modelId, idb, onProgress) {
+  if (engine && engineIDB === idb) {
     engine.setInitProgressCallback((p) => onProgress(p));
     await engine.reload(modelId);
   } else {
     engine = await webllm.CreateMLCEngine(modelId, {
+      appConfig: makeConfig(idb),
       initProgressCallback: (p) => onProgress(p), // { progress: 0..1, text }
     });
+    engineIDB = idb;
+  }
+}
+
+// 1) Baixa (ou lê do cache) e compila o modelo na GPU.
+export async function loadModel(modelId = DEFAULT_MODEL, onProgress = () => {}) {
+  if (engine && loadedModel === modelId) return;
+  try {
+    await create(modelId, useIDB, onProgress);
+  } catch (e) {
+    if (useIDB || !/cache/i.test(String(e.message))) throw e;
+    // A Cache API falhou: tenta de novo guardando em IndexedDB.
+    useIDB = true;
+    try { localStorage.setItem(IDB_KEY, "1"); } catch {}
+    onProgress({ progress: 0, text: "A Cache API falhou; tentando de novo com IndexedDB..." });
+    engine = null;
+    await create(modelId, true, onProgress);
   }
   loadedModel = modelId;
 }
