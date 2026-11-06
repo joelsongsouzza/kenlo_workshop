@@ -25,8 +25,8 @@ body{margin:0;font-family:"Nunito",system-ui,sans-serif;font-weight:700;color:va
 .center{text-align:center}
 .muted{color:var(--muted)}
 
-.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:var(--surface);border-bottom:2px solid var(--line);position:sticky;top:0;z-index:5}
-.brand{font-weight:900;font-size:22px;color:var(--green)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:12px 20px;background:var(--surface);border-bottom:2px solid var(--line);position:sticky;top:0;z-index:5}
+.brand{font-weight:900;font-size:22px;color:var(--green);text-decoration:none}
 .stats{display:flex;gap:8px}
 .chip{background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:6px 12px;font:inherit;font-weight:800}
 .chip-btn{cursor:pointer;color:var(--muted)}
@@ -155,3 +155,26 @@ a{color:var(--blue-t)}
 #btn-theme .icon-moon{display:none}
 :root[data-theme="dark"] #btn-theme .icon-sun{display:none}
 :root[data-theme="dark"] #btn-theme .icon-moon{display:inline}
+
+/* navegação entre telas */
+.nav{display:flex;gap:6px}
+.nav a{padding:6px 12px;border:2px solid var(--line);border-radius:12px;font-weight:800;color:var(--muted);text-decoration:none;white-space:nowrap}
+.nav a:hover{background:var(--bg)}
+.nav a[aria-current="page"]{border-color:var(--blue);background:var(--blue-bg);color:var(--blue-t)}
+@media (max-width:640px){
+  .nav{order:3;width:100%}
+  .nav a{flex:1;text-align:center}
+}
+
+/* simplificador de texto */
+.sim-tools{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.sim-tools .chips{margin-top:8px}
+.sim-tools small{white-space:nowrap}
+.sim-hint{margin:10px 2px 0;font-size:14px}
+.sim-result-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.sim-badge{font-size:13px;color:var(--muted)}
+.sim-out{margin-top:14px;padding:14px 16px;background:var(--bg);border:2px solid var(--line);border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:600;font-size:17px;line-height:1.6;min-height:56px}
+.sim-out:empty{display:none}
+.sim-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.sim-actions .btn{flex:1;padding:12px 16px;font-size:14px}
+.lib-item .grow small + small{margin-top:2px}

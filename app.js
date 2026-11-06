@@ -2,12 +2,11 @@
 //  app.js — interface e gamificação. Nada de WebLLM direto aqui:
 //  tudo passa pelo llm.js.
 // =====================================================================
-import { hasWebGPU, loadModel, generateItem, streamText, stopGeneration,
-         currentModel, hooks, DEFAULT_MODEL, MODEL_OPTIONS, isCached } from "./llm.js";
+import { hasWebGPU, loadModel, generateItem, streamText, stopGeneration, currentModel } from "./llm.js";
 import { library } from "./library.js";
 import { fetchFacts } from "./wiki.js";
+import { $, esc, store, getModel, initTheme, initSettings, initBackstage } from "./common.js";
 
-const $ = (id) => document.getElementById(id);
 const SUGGESTIONS = ["Fotossíntese", "Docker", "Revolução Francesa", "Machine Learning", "Sistema Solar", "Git e GitHub"];
 const SCREENS = ["nogpu", "setup", "loading", "game", "result"];
 
@@ -20,10 +19,7 @@ const state = {
 };
 
 // ---------- persistência simples (XP total + streak diário) ----------
-const store = {
-  get() { try { return JSON.parse(localStorage.getItem("studyquest") || "{}"); } catch { return {}; } },
-  set(v) { try { localStorage.setItem("studyquest", JSON.stringify(v)); } catch {} },
-};
+// (o `store` vem do common.js)
 function renderStats() {
   const s = store.get();
   $("stat-xp").textContent = s.xp || 0;
@@ -42,18 +38,7 @@ function registerStudyDay(xpGained) {
   renderStats();
 }
 
-// ---------- tema (claro/escuro) ----------
-function applyTheme(t) {
-  document.documentElement.dataset.theme = t;
-  $("btn-theme").setAttribute("aria-pressed", String(t === "dark"));
-}
-function toggleTheme() {
-  const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-  applyTheme(t);
-  try { localStorage.setItem("studyquest-theme", t); } catch {}
-}
-$("btn-theme").onclick = toggleTheme;
-applyTheme(document.documentElement.dataset.theme || "light");
+initTheme();
 
 // ---------- navegação ----------
 function show(name) {
@@ -90,46 +75,6 @@ function confetti() {
     box.appendChild(p);
     setTimeout(() => p.remove(), 5000);
   }
-}
-
-// ---------- configurações (escolha do modelo) ----------
-function getModel() {
-  const saved = store.get().model;
-  return MODEL_OPTIONS.some((m) => m.id === saved) ? saved : DEFAULT_MODEL;
-}
-function renderModelLabel() {
-  const m = MODEL_OPTIONS.find((o) => o.id === getModel());
-  $("current-model-label").textContent = `${m.name} (${m.size})`;
-}
-let pickedModel = null;
-async function openSettings() {
-  pickedModel = getModel();
-  $("settings").classList.remove("hidden");
-  const list = $("model-list");
-  const cached = await Promise.all(MODEL_OPTIONS.map((m) => isCached(m.id)));
-  const draw = () => {
-    list.innerHTML = "";
-    MODEL_OPTIONS.forEach((m, i) => {
-      const b = document.createElement("button");
-      b.className = "model-item" + (m.id === pickedModel ? " active" : "");
-      b.innerHTML = `<span class="grow">${esc(m.name)}${cached[i] ? '<span class="tag">já baixado</span>' : ""}<small>${esc(m.note)}</small></span><span class="size">${esc(m.size)}</span>`;
-      b.onclick = () => { pickedModel = m.id; draw(); };
-      list.appendChild(b);
-    });
-  };
-  draw();
-}
-function closeSettings() { $("settings").classList.add("hidden"); }
-function initSettings() {
-  $("btn-settings").onclick = openSettings;
-  $("link-settings").onclick = (e) => { e.preventDefault(); openSettings(); };
-  $("btn-close-settings").onclick = closeSettings;
-  $("settings").onclick = (e) => { if (e.target.id === "settings") closeSettings(); };
-  $("btn-save-settings").onclick = () => {
-    const s = store.get(); s.model = pickedModel; store.set(s);
-    renderModelLabel(); closeSettings();
-  };
-  renderModelLabel();
 }
 
 // ---------- tela de configuração ----------
@@ -445,24 +390,6 @@ async function finish() {
     ], (t) => { box.textContent = t; }, 300);
   } catch (e) { box.textContent = "Não consegui gerar o feedback: " + e.message; }
 }
-
-// ---------- bastidores ----------
-function initBackstage() {
-  $("btn-backstage").onclick = () => $("backstage").classList.toggle("hidden");
-  $("btn-close-backstage").onclick = () => $("backstage").classList.add("hidden");
-  hooks.onLog = ({ prompt, output, usage, ms, attempt, attempts, error }) => {
-    $("bs-prompt").textContent = prompt.map((m) => `[${m.role}]\n${m.content}`).join("\n\n");
-    $("bs-output").textContent = output;
-    $("bs-time").textContent = (ms / 1000).toFixed(1) + " s" +
-      (attempt ? ` · tentativa ${attempt}/${attempts}` : "") +
-      (error ? ` · FALHOU: ${error}` : "");
-    const tps = usage?.extra?.decode_tokens_per_s;
-    $("bs-speed").textContent = tps ? tps.toFixed(1) + " tokens/s" : (usage ? usage.completion_tokens + " tokens" : "—");
-  };
-}
-
-// ---------- util ----------
-function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 // ---------- boot ----------
 function boot() {
