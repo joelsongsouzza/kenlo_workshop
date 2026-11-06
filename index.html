@@ -56,6 +56,12 @@
         <label for="count">Quantidade de perguntas: <b id="count-label">5</b></label>
         <input id="count" type="range" min="1" max="10" value="5">
 
+        <label for="model">Modelo de IA</label>
+        <select id="model">
+          <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Leve (~700 MB) · mais rápido, erra mais</option>
+          <option value="Qwen2.5-3B-Instruct-q4f16_1-MLC">Melhor (~2 GB) · mais preciso, download maior</option>
+        </select>
+
         <button id="btn-start" class="btn btn-green btn-big">COMEÇAR</button>
       </div>
     </section>
@@ -68,6 +74,7 @@
       <div class="bar"><div id="loading-bar" class="bar-fill"></div></div>
       <small id="loading-detail" class="muted"></small>
       <div id="loading-error" class="error hidden"></div>
+      <button id="btn-loading-back" class="btn btn-ghost hidden" style="margin-top:14px">Voltar</button>
     </section>
 
     <!-- Jogo -->

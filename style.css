@@ -109,3 +109,5 @@ input[type=range]{width:100%;accent-color:var(--green)}
 #confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:30}
 #confetti i{position:absolute;top:-20px;width:10px;height:14px;opacity:.9;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+select{width:100%;font:inherit;font-weight:700;padding:14px;border:2px solid var(--line);border-radius:14px;background:var(--bg)}

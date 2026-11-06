@@ -91,6 +91,8 @@ function initSetup() {
     };
   }
   $("count").oninput = () => { $("count-label").textContent = $("count").value; };
+  $("model").value = DEFAULT_MODEL;
+  $("btn-loading-back").onclick = () => show("setup");
   $("btn-start").onclick = startSession;
   $("topic").onkeydown = (e) => { if (e.key === "Enter") startSession(); };
 }
@@ -107,26 +109,32 @@ async function startSession() {
   });
 
   show("loading");
-  try { await ensureModel(); }
-  catch { setTimeout(() => show("setup"), 4000); return; }
+  try { await ensureModel($("model").value); }
+  catch { return; }
   show("game");
   renderHearts();
   showCurrent();
   generateLoop(state.runId);
 }
 
-async function ensureModel() {
-  if (currentModel()) return;
+async function ensureModel(modelId) {
+  if (currentModel() === modelId) return;
   $("loading-error").classList.add("hidden");
+  $("btn-loading-back").classList.add("hidden");
+  $("loading-bar").style.width = "0%";
   try {
-    await loadModel(DEFAULT_MODEL, (p) => {
+    await loadModel(modelId, (p) => {
       $("loading-bar").style.width = Math.round(p.progress * 100) + "%";
       $("loading-detail").textContent = p.text;
     });
     $("bs-model").textContent = currentModel();
   } catch (e) {
-    $("loading-error").textContent = "Não consegui carregar o modelo: " + e.message;
+    $("loading-error").textContent = "Não consegui carregar o modelo: " + e.message +
+      "\n\nDicas: escolha o modelo Leve; libere espaço em disco; desative VPN/proxy/bloqueadores " +
+      "(os arquivos vêm de huggingface.co e raw.githubusercontent.com); e tente de novo.";
+    $("loading-error").style.whiteSpace = "pre-wrap";
     $("loading-error").classList.remove("hidden");
+    $("btn-loading-back").classList.remove("hidden");
     throw e;
   }
 }

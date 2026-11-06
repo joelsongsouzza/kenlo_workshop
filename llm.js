@@ -10,7 +10,7 @@ export const MODELS = {
   leve:  "Llama-3.2-1B-Instruct-q4f16_1-MLC",
   bom:   "Qwen2.5-3B-Instruct-q4f16_1-MLC",
 };
-export const DEFAULT_MODEL = MODELS.bom;
+export const DEFAULT_MODEL = MODELS.leve; // ~700 MB; use MODELS.bom (~2 GB) se a máquina aguentar
 
 let engine = null;
 let loadedModel = null;
@@ -23,9 +23,14 @@ export const hasWebGPU = () => !!navigator.gpu;
 // 1) Baixa (ou lê do cache) e compila o modelo na GPU.
 export async function loadModel(modelId = DEFAULT_MODEL, onProgress = () => {}) {
   if (engine && loadedModel === modelId) return;
-  engine = await webllm.CreateMLCEngine(modelId, {
-    initProgressCallback: (p) => onProgress(p), // { progress: 0..1, text }
-  });
+  if (engine) {
+    engine.setInitProgressCallback((p) => onProgress(p));
+    await engine.reload(modelId);
+  } else {
+    engine = await webllm.CreateMLCEngine(modelId, {
+      initProgressCallback: (p) => onProgress(p), // { progress: 0..1, text }
+    });
+  }
   loadedModel = modelId;
 }
 
