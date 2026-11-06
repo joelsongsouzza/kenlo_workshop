@@ -2,7 +2,8 @@
 //  llm.js — TUDO que fala com o WebLLM fica isolado aqui.
 //  O resto do app só chama as funções exportadas abaixo.
 // =====================================================================
-import * as webllm from "https://esm.run/@mlc-ai/web-llm@0.2.79";
+// 0.2.83 é a primeira versão com o Qwen3.5 na lista pré-compilada.
+import * as webllm from "https://esm.run/@mlc-ai/web-llm@0.2.83";
 
 // Modelos disponíveis no seletor. `size` é o download aproximado (varia um pouco por versão).
 // Lista completa: webllm.prebuiltAppConfig.model_list
@@ -12,7 +13,9 @@ export const MODEL_OPTIONS = [
   { id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC", name: "Qwen 2.5 · 1.5B", size: "~1.0 GB", note: "Equilíbrio entre peso e qualidade." },
   { id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", name: "Llama 3.2 · 3B",  size: "~1.8 GB", note: "Mais preciso; precisa de mais GPU." },
   { id: "Qwen2.5-3B-Instruct-q4f16_1-MLC",   name: "Qwen 2.5 · 3B",   size: "~2.0 GB", note: "Ótimo em português; download maior." },
-  { id: "Phi-3.5-mini-instruct-q4f16_1-MLC", name: "Phi 3.5 mini",    size: "~2.3 GB", note: "O mais pesado da lista." },
+  { id: "Phi-3.5-mini-instruct-q4f16_1-MLC", name: "Phi 3.5 mini",    size: "~2.3 GB", note: "Mais pesado que os anteriores." },
+  { id: "Llama-3-8B-Instruct-q4f16_1-MLC",   name: "Llama 3 · 8B",    size: "~4.5 GB", note: "Grande: precisa de ~5 GB de VRAM livres." },
+  { id: "Qwen3.5-9B-q4f16_1-MLC",            name: "Qwen 3.5 · 9B",   size: "~5.5 GB", note: "O maior e mais capaz; precisa de ~6,5 GB de VRAM livres." },
 ];
 export const DEFAULT_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
 
@@ -42,6 +45,11 @@ let loadedModel = null;
 export const hooks = { onLog: () => {} };
 
 export const hasWebGPU = () => !!navigator.gpu;
+
+// Modelos Qwen3/3.5 "pensam" por padrão (escrevem um bloco <think>...</think> antes da resposta),
+// o que quebraria o JSON do quiz e apareceria no texto em streaming. Desligamos o raciocínio
+// só para eles: em outros modelos essa opção injetaria um bloco vazio sem sentido.
+const noThinking = () => (/^Qwen3/.test(loadedModel ?? "") ? { extra_body: { enable_thinking: false } } : {});
 
 async function create(modelId, idb, onProgress) {
   if (engine && engineIDB === idb) {
@@ -191,6 +199,7 @@ export async function generateItem(opts, attempts = 3) {
         seed: Math.floor(Math.random() * 2 ** 31), // sem isso, prompts parecidos tendem à mesma saída
         max_tokens: 400, // com alternativas/explicação curtas o JSON cabe; menos tokens = mais rápido
         response_format: { type: "json_object", schema: JSON.stringify(SCHEMAS[opts.mode]) },
+        ...noThinking(),
       });
       raw = res.choices[0].message.content;
       usage = res.usage;
@@ -271,6 +280,7 @@ export async function streamText(messages, onToken, max_tokens = 350, temperatur
     stream_options: { include_usage: true },
     temperature,
     max_tokens,
+    ...noThinking(),
   });
   let text = "", usage = null;
   for await (const chunk of stream) {
