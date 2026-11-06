@@ -127,7 +127,8 @@ function buildPrompt({ mode, topic, level, context, previous, index, total }) {
             `"wrongAnswers" deve ter EXATAMENTE 3 textos, nenhum igual a "correctAnswer".\n` +
             `Regras: a pergunta deve ser clara, completa e ter UMA única resposta correta; ` +
             `as erradas devem ser do mesmo tipo da correta (se a correta é uma cidade, as erradas também são cidades). ` +
-            `Se não tiver certeza sobre o tema, faça uma pergunta básica e conhecida, nunca invente fatos.\n` +
+            `Se não tiver certeza sobre o tema, faça uma pergunta básica e conhecida, nunca invente fatos. ` +
+            `Não pergunte sobre etimologia nem "origem da palavra"; prefira Quem, Onde, Quando ou O que.\n` +
             `Exemplo (tema "Geografia"):\n` +
             `{"question":"Qual é a capital da França?","correctAnswer":"Paris","wrongAnswers":["Londres","Madri","Roma"],"explanation":"Paris é a capital e maior cidade da França."}`
           : `\n\nFormato exato (JSON):\n{"front":"...","back":"..."}`),
@@ -189,8 +190,14 @@ function validate(mode, d, lenient = false) {
     if (wrong && !Array.isArray(wrong) && typeof wrong === "object") wrong = Object.values(wrong);
     wrong = Array.isArray(wrong) ? wrong.map(asText).filter(Boolean) : [];
     // descarta erradas repetidas ou iguais à correta (senão haveria duas respostas certas)
-    const seen = new Set([norm(correct)]);
-    wrong = wrong.filter((w) => !seen.has(norm(w)) && seen.add(norm(w)));
+    // também descarta variações ("Pedra" x "Pedra da fortaleza"): confundem e não testam nada
+    const kept = [norm(correct)];
+    wrong = wrong.filter((w) => {
+      const n = norm(w);
+      if (kept.some((k) => k === n || k.includes(n) || n.includes(k))) return false;
+      kept.push(n);
+      return true;
+    });
     if (wrong.length < (lenient ? 2 : 3)) throw new Error(`quiz inválido: só ${wrong.length} alternativas erradas distintas`);
     // A posição da certa é sorteada aqui: o modelo nunca precisa "apontar" um índice.
     const options = shuffle([correct, ...wrong.slice(0, 3)]);
