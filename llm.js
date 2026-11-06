@@ -121,12 +121,16 @@ function buildPrompt({ mode, topic, level, context, previous, index, total }) {
         `Tema: ${topic}\nNível do aluno: ${level}\n` +
         (context ? `Contexto do aluno: ${context}\n` : "") +
         `\nCrie ${shape}. Esta é a pergunta ${index + 1} de ${total}; ` +
-        `cubra um aspecto diferente do tema.${avoid}`,
+        `cubra um aspecto diferente do tema.${avoid}` +
+        (mode === "quiz"
+          ? `\n\nFormato exato (JSON):\n{"question":"...","options":["A","B","C","D"],"correctIndex":0,"explanation":"..."}\n` +
+            `"options" deve ter EXATAMENTE 4 textos.`
+          : `\n\nFormato exato (JSON):\n{"front":"...","back":"..."}`),
     },
   ];
 }
 
-export async function generateItem(opts, attempts = 3) {
+export async function generateItem(opts, attempts = 5) {
   const messages = buildPrompt(opts);
   let lastErr;
   for (let i = 0; i < attempts; i++) {
@@ -134,8 +138,8 @@ export async function generateItem(opts, attempts = 3) {
     try {
       const res = await engine.chat.completions.create({
         messages,
-        temperature: 0.8,
-        max_tokens: 400,
+        temperature: i === 0 ? 0.8 : 0.5, // nas novas tentativas, menos criatividade = formato mais estável
+        max_tokens: 600, // 400 podia cortar o JSON no meio
         response_format: { type: "json_object", schema: JSON.stringify(SCHEMAS[opts.mode]) },
       });
       const raw = res.choices[0].message.content;
@@ -148,11 +152,25 @@ export async function generateItem(opts, attempts = 3) {
   throw lastErr;
 }
 
+// Modelos pequenos às vezes devolvem alternativas como objetos, com mais de 4 itens
+// ou com nomes de campo diferentes. Aceitamos o que dá para aproveitar.
+function asText(o) {
+  if (typeof o === "string") return o.trim();
+  if (o && typeof o === "object") return String(o.text ?? o.option ?? o.alternativa ?? Object.values(o)[0] ?? "").trim();
+  return String(o ?? "").trim();
+}
+
 function validate(mode, d) {
   if (mode === "quiz") {
-    if (!d.question || !Array.isArray(d.options) || d.options.length !== 4) throw new Error("quiz inválido");
-    const idx = Math.min(3, Math.max(0, Number(d.correctIndex) || 0));
-    return { question: d.question, options: d.options.map(String), correctIndex: idx, explanation: d.explanation || "" };
+    const question = asText(d.question ?? d.pergunta);
+    let options = d.options ?? d.alternativas ?? d.choices;
+    if (options && !Array.isArray(options) && typeof options === "object") options = Object.values(options);
+    options = Array.isArray(options) ? options.map(asText).filter(Boolean) : [];
+    if (!question) throw new Error("quiz inválido: sem pergunta");
+    if (options.length < 4) throw new Error(`quiz inválido: só ${options.length} alternativas`);
+    options = options.slice(0, 4);
+    const idx = Math.min(3, Math.max(0, Number(d.correctIndex ?? d.correta) || 0));
+    return { question, options, correctIndex: idx, explanation: asText(d.explanation ?? d.explicacao) };
   }
   if (!d.front || !d.back) throw new Error("flashcard inválido");
   return { front: d.front, back: d.back };
