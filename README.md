@@ -20,4 +20,4 @@ Arraste esta pasta no Netlify (ou `netlify deploy --prod --dir .`).
 ## Dicas para a apresentação
 - Abra o site antes e gere um quiz uma vez: o modelo fica em cache e abre rápido depois.
 - Botão **Bastidores** mostra modelo, tokens/s, prompt e resposta crua.
-- Para trocar o modelo, edite `DEFAULT_MODEL` em `llm.js` (há uma opção mais leve de 1B).
+- Para trocar o modelo, clique na engrenagem ⚙️ no topo (mostra o tamanho do download de cada um e quais já estão em cache).

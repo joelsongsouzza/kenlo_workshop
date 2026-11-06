@@ -4,13 +4,22 @@
 // =====================================================================
 import * as webllm from "https://esm.run/@mlc-ai/web-llm@0.2.79";
 
-// Modelos pequenos o bastante para rodar em notebook. Troque à vontade:
-// lista completa em webllm.prebuiltAppConfig.model_list
-export const MODELS = {
-  leve:  "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-  bom:   "Qwen2.5-3B-Instruct-q4f16_1-MLC",
-};
-export const DEFAULT_MODEL = MODELS.leve; // ~700 MB; use MODELS.bom (~2 GB) se a máquina aguentar
+// Modelos disponíveis no seletor. `size` é o download aproximado (varia um pouco por versão).
+// Lista completa: webllm.prebuiltAppConfig.model_list
+export const MODEL_OPTIONS = [
+  { id: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC", name: "Qwen 2.5 · 0.5B", size: "~0.4 GB", note: "Minúsculo e rápido, mas erra bastante." },
+  { id: "Llama-3.2-1B-Instruct-q4f16_1-MLC", name: "Llama 3.2 · 1B",  size: "~0.7 GB", note: "Leve. Bom ponto de partida." },
+  { id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC", name: "Qwen 2.5 · 1.5B", size: "~1.0 GB", note: "Equilíbrio entre peso e qualidade." },
+  { id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", name: "Llama 3.2 · 3B",  size: "~1.8 GB", note: "Mais preciso; precisa de mais GPU." },
+  { id: "Qwen2.5-3B-Instruct-q4f16_1-MLC",   name: "Qwen 2.5 · 3B",   size: "~2.0 GB", note: "Ótimo em português; download maior." },
+  { id: "Phi-3.5-mini-instruct-q4f16_1-MLC", name: "Phi 3.5 mini",    size: "~2.3 GB", note: "O mais pesado da lista." },
+];
+export const DEFAULT_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
+
+// true se os arquivos do modelo já estão no cache do navegador
+export async function isCached(id) {
+  try { return await webllm.hasModelInCache(id); } catch { return false; }
+}
 
 let engine = null;
 let loadedModel = null;

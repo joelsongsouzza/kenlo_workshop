@@ -15,6 +15,9 @@
       <span class="chip" title="Dias seguidos">🔥 <b id="stat-streak">0</b></span>
       <span class="chip" title="XP total">⚡ <b id="stat-xp">0</b></span>
       <button id="btn-backstage" class="chip chip-btn" title="Bastidores (para devs)">🛠️ Bastidores</button>
+      <button id="btn-settings" class="chip chip-btn" title="Configurações" aria-label="Configurações">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
     </div>
   </header>
 
@@ -56,11 +59,7 @@
         <label for="count">Quantidade de perguntas: <b id="count-label">5</b></label>
         <input id="count" type="range" min="1" max="10" value="5">
 
-        <label for="model">Modelo de IA</label>
-        <select id="model">
-          <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Leve (~700 MB) · mais rápido, erra mais</option>
-          <option value="Qwen2.5-3B-Instruct-q4f16_1-MLC">Melhor (~2 GB) · mais preciso, download maior</option>
-        </select>
+        <p class="muted" style="margin:18px 0 0;font-size:14px">🧠 Modelo: <b id="current-model-label">—</b> · <a href="#" id="link-settings">trocar</a></p>
 
         <button id="btn-start" class="btn btn-green btn-big">COMEÇAR</button>
       </div>
@@ -114,6 +113,20 @@
       </div>
     </section>
   </main>
+
+  <!-- Configurações -->
+  <div id="settings" class="modal hidden">
+    <div class="modal-card">
+      <div class="backstage-head" style="color:var(--ink)">
+        <h1 style="margin:0;font-size:22px">⚙️ Configurações</h1>
+        <button id="btn-close-settings" class="icon-btn">✕</button>
+      </div>
+      <label style="margin-top:12px">Modelo de IA</label>
+      <p class="sub" style="font-size:14px;margin-bottom:10px">O modelo é baixado para o seu navegador uma vez e fica em cache. A troca vale a partir do próximo estudo.</p>
+      <div id="model-list" class="model-list"></div>
+      <button id="btn-save-settings" class="btn btn-green btn-big">SALVAR</button>
+    </div>
+  </div>
 
   <!-- Painel de bastidores -->
   <aside id="backstage" class="backstage hidden">

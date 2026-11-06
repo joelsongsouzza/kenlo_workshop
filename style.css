@@ -111,3 +111,16 @@ input[type=range]{width:100%;accent-color:var(--green)}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 
 select{width:100%;font:inherit;font-weight:700;padding:14px;border:2px solid var(--line);border-radius:14px;background:var(--bg)}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:16px;z-index:25}
+.modal-card{background:#fff;border-radius:20px;padding:22px;width:min(520px,100%);max-height:92vh;overflow:auto}
+.model-list{display:grid;gap:8px}
+.model-item{display:flex;gap:12px;align-items:center;text-align:left;font:inherit;font-weight:800;padding:12px 14px;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;cursor:pointer}
+.model-item:hover{border-color:var(--blue)}
+.model-item.active{border-color:var(--blue);background:#ddf4ff}
+.model-item .grow{flex:1}
+.model-item small{display:block;color:var(--muted);font-weight:600}
+.model-item .size{font-weight:900;color:var(--blue-d);white-space:nowrap}
+.model-item .tag{display:inline-block;font-size:11px;background:#d7ffb8;color:var(--green-d);border-radius:8px;padding:1px 6px;margin-left:6px}
+.chip-btn svg{pointer-events:none}
+a{color:var(--blue-d)}
