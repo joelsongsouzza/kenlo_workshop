@@ -5,6 +5,7 @@
 import { hasWebGPU, loadModel, generateItem, streamText, stopGeneration,
          currentModel, hooks, DEFAULT_MODEL, MODEL_OPTIONS, isCached } from "./llm.js";
 import { library } from "./library.js";
+import { fetchFacts } from "./wiki.js";
 
 const $ = (id) => document.getElementById(id);
 const SUGGESTIONS = ["Fotossíntese", "Docker", "Revolução Francesa", "Machine Learning", "Sistema Solar", "Git e GitHub"];
@@ -178,8 +179,9 @@ function startReplay(id) {
     items: e.items.map((i) => ({ ...i })), total: e.items.length,
     current: 0, hearts: 3, xp: 0, combo: 0, results: [],
     waiting: false, genError: null, answered: false, runId: state.runId + 1,
-    libId: e.id,
+    libId: e.id, facts: null,
   });
+  $("game-source").classList.add("hidden");
   show("game");
   renderHearts();
   showCurrent();
@@ -197,12 +199,22 @@ async function startSession() {
     topic, context: $("context").value.trim(), total: +$("count").value,
     items: [], current: 0, hearts: 3, xp: 0, combo: 0, results: [],
     waiting: false, genError: null, answered: false, runId: state.runId + 1,
-    libId: library.newId(),
+    libId: library.newId(), facts: null,
   });
 
   show("loading");
+  // busca na Wikipédia enquanto o modelo carrega (não atrasa nada); falhou = segue sem
+  const factsP = $("use-wiki").checked ? fetchFacts(topic) : Promise.resolve(null);
   try { await ensureModel(getModel()); }
   catch { return; }
+  state.facts = await factsP;
+  const src = $("game-source");
+  if (state.facts) {
+    src.innerHTML = `Base: <a href="${esc(state.facts.url)}" target="_blank" rel="noopener">Wikipédia · ${esc(state.facts.title)}</a>`;
+  } else {
+    src.textContent = $("use-wiki").checked ? "Sem artigo confiável na Wikipédia: perguntas só com o conhecimento do modelo." : "";
+  }
+  src.classList.toggle("hidden", !src.textContent);
   show("game");
   renderHearts();
   showCurrent();
@@ -239,7 +251,7 @@ async function generateLoop(runId) {
     if (runId !== state.runId) return;
     try {
       const item = await generateItem({
-        mode: state.mode, topic: state.topic, level: state.level, context: state.context,
+        mode: state.mode, topic: state.topic, level: state.level, context: state.context, facts: state.facts,
         index: state.items.length, total: state.total,
         previous: state.items.map((i) => i.question || i.front),
       });

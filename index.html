@@ -43,6 +43,8 @@
         <label for="context">Conte mais (opcional)</label>
         <textarea id="context" rows="2" maxlength="240" placeholder="Ex.: Sou dev backend e quero entender o básico para entrevistas."></textarea>
 
+        <label class="check"><input id="use-wiki" type="checkbox" checked> Buscar o tema na Wikipédia (perguntas mais corretas)</label>
+
         <label>Seu nível</label>
         <div id="level" class="segmented">
           <button data-v="iniciante" class="active">🌱 Iniciante</button>
@@ -90,6 +92,7 @@
         <div id="hearts" class="hearts"></div>
       </div>
       <div class="game-meta"><span id="game-count"></span><span id="combo" class="combo"></span></div>
+      <div id="game-source" class="game-source hidden"></div>
 
       <div id="game-body" class="card"></div>
 

@@ -102,7 +102,7 @@ const SCHEMAS = {
   },
 };
 
-function buildPrompt({ mode, topic, level, context, previous, index, total }) {
+function buildPrompt({ mode, topic, level, context, facts, previous, index, total }) {
   const shape = mode === "quiz"
     ? "uma pergunta de múltipla escolha: a resposta correta (curta, até 6 palavras), exatamente 3 respostas ERRADAS mas plausíveis (também curtas, diferentes da correta) e uma explicação de UMA frase curta (até 20 palavras) que justifique a resposta correta"
     : "um flashcard com a frente (pergunta ou termo curto) e o verso (resposta clara e curta)";
@@ -113,13 +113,15 @@ function buildPrompt({ mode, topic, level, context, previous, index, total }) {
     {
       role: "system",
       content: "Você é um professor paciente e preciso que cria material de estudo em português do Brasil. " +
-               "Seja factualmente correto. Responda SOMENTE com JSON válido.",
+               "Seja factualmente correto. Responda SOMENTE com JSON válido." +
+               (facts ? " Use SOMENTE as informações do texto de referência; nunca acrescente fatos de fora dele." : ""),
     },
     {
       role: "user",
       content:
         `Tema: ${topic}\nNível do aluno: ${level}\n` +
         (context ? `Contexto do aluno: ${context}\n` : "") +
+        (facts ? `\nTexto de referência (Wikipédia, "${facts.title}"):\n"""\n${facts.text}\n"""\n` : "") +
         `\nCrie ${shape}. Esta é a pergunta ${index + 1} de ${total}; ` +
         `cubra um aspecto diferente do tema.${avoid}` +
         (mode === "quiz"
