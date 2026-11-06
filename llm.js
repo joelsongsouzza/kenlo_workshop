@@ -130,7 +130,8 @@ function buildPrompt({ mode, topic, level, context, previous, index, total }) {
   ];
 }
 
-export async function generateItem(opts, attempts = 5) {
+// 3 tentativas: em GPU lenta cada uma custa minutos, melhor mostrar o erro logo do que girar 5x.
+export async function generateItem(opts, attempts = 3) {
   const messages = buildPrompt(opts);
   let lastErr;
   for (let i = 0; i < attempts; i++) {
