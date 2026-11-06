@@ -85,12 +85,12 @@ const SCHEMAS = {
   quiz: {
     type: "object",
     properties: {
-      question:    { type: "string" },
-      options:     { type: "array", items: { type: "string" }, minItems: 4, maxItems: 4 },
-      correctIndex:{ type: "integer" },
-      explanation: { type: "string" },
+      question:      { type: "string" },
+      correctAnswer: { type: "string" },
+      wrongAnswers:  { type: "array", items: { type: "string" }, minItems: 3, maxItems: 3 },
+      explanation:   { type: "string" },
     },
-    required: ["question", "options", "correctIndex", "explanation"],
+    required: ["question", "correctAnswer", "wrongAnswers", "explanation"],
   },
   flashcards: {
     type: "object",
@@ -104,7 +104,7 @@ const SCHEMAS = {
 
 function buildPrompt({ mode, topic, level, context, previous, index, total }) {
   const shape = mode === "quiz"
-    ? "uma pergunta de múltipla escolha com 4 alternativas curtas (até 6 palavras cada), o índice (0 a 3) da alternativa correta e uma explicação de UMA frase curta (até 20 palavras)"
+    ? "uma pergunta de múltipla escolha: a resposta correta (curta, até 6 palavras), exatamente 3 respostas ERRADAS mas plausíveis (também curtas, diferentes da correta) e uma explicação de UMA frase curta (até 20 palavras) que justifique a resposta correta"
     : "um flashcard com a frente (pergunta ou termo curto) e o verso (resposta clara e curta)";
   const avoid = previous.length
     ? `\nNÃO repita nem reformule estas perguntas já feitas:\n- ${previous.join("\n- ")}`
@@ -123,8 +123,8 @@ function buildPrompt({ mode, topic, level, context, previous, index, total }) {
         `\nCrie ${shape}. Esta é a pergunta ${index + 1} de ${total}; ` +
         `cubra um aspecto diferente do tema.${avoid}` +
         (mode === "quiz"
-          ? `\n\nFormato exato (JSON):\n{"question":"...","options":["A","B","C","D"],"correctIndex":0,"explanation":"..."}\n` +
-            `"options" deve ter EXATAMENTE 4 textos.`
+          ? `\n\nFormato exato (JSON):\n{"question":"...","correctAnswer":"...","wrongAnswers":["...","...","..."],"explanation":"..."}\n` +
+            `"wrongAnswers" deve ter EXATAMENTE 3 textos, nenhum igual a "correctAnswer".`
           : `\n\nFormato exato (JSON):\n{"front":"...","back":"..."}`),
     },
   ];
@@ -166,17 +166,25 @@ function asText(o) {
   return String(o ?? "").trim();
 }
 
+const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const norm = (t) => t.toLowerCase().replace(/\s+/g, " ").trim();
+
 function validate(mode, d) {
   if (mode === "quiz") {
     const question = asText(d.question ?? d.pergunta);
-    let options = d.options ?? d.alternativas ?? d.choices;
-    if (options && !Array.isArray(options) && typeof options === "object") options = Object.values(options);
-    options = Array.isArray(options) ? options.map(asText).filter(Boolean) : [];
     if (!question) throw new Error("quiz inválido: sem pergunta");
-    if (options.length < 4) throw new Error(`quiz inválido: só ${options.length} alternativas`);
-    options = options.slice(0, 4);
-    const idx = Math.min(3, Math.max(0, Number(d.correctIndex ?? d.correta) || 0));
-    return { question, options, correctIndex: idx, explanation: asText(d.explanation ?? d.explicacao) };
+    const correct = asText(d.correctAnswer ?? d.resposta ?? d.correta);
+    if (!correct) throw new Error("quiz inválido: sem resposta correta");
+    let wrong = d.wrongAnswers ?? d.erradas ?? d.distractors;
+    if (wrong && !Array.isArray(wrong) && typeof wrong === "object") wrong = Object.values(wrong);
+    wrong = Array.isArray(wrong) ? wrong.map(asText).filter(Boolean) : [];
+    // descarta erradas repetidas ou iguais à correta (senão haveria duas respostas certas)
+    const seen = new Set([norm(correct)]);
+    wrong = wrong.filter((w) => !seen.has(norm(w)) && seen.add(norm(w)));
+    if (wrong.length < 3) throw new Error(`quiz inválido: só ${wrong.length} alternativas erradas distintas`);
+    // A posição da certa é sorteada aqui: o modelo nunca precisa "apontar" um índice.
+    const options = shuffle([correct, ...wrong.slice(0, 3)]);
+    return { question, options, correctIndex: options.indexOf(correct), explanation: asText(d.explanation ?? d.explicacao) };
   }
   if (!d.front || !d.back) throw new Error("flashcard inválido");
   return { front: d.front, back: d.back };
