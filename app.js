@@ -4,6 +4,7 @@
 // =====================================================================
 import { hasWebGPU, loadModel, generateItem, streamText, stopGeneration,
          currentModel, hooks, DEFAULT_MODEL, MODEL_OPTIONS, isCached } from "./llm.js";
+import { library } from "./library.js";
 
 const $ = (id) => document.getElementById(id);
 const SUGGESTIONS = ["Fotossíntese", "Docker", "Revolução Francesa", "Machine Learning", "Sistema Solar", "Git e GitHub"];
@@ -14,6 +15,7 @@ const state = {
   mode: "quiz", level: "iniciante", topic: "", context: "", total: 5,
   items: [], current: 0, hearts: 3, xp: 0, combo: 0, results: [],
   runId: 0, waiting: false, genError: null, answered: false,
+  libId: null, // id do estudo na biblioteca (perguntas salvas no navegador)
 };
 
 // ---------- persistência simples (XP total + streak diário) ----------
@@ -42,6 +44,7 @@ function registerStudyDay(xpGained) {
 // ---------- navegação ----------
 function show(name) {
   SCREENS.forEach((n) => $("screen-" + n).classList.toggle("hidden", n !== name));
+  if (name === "setup") renderLibrary();
   $("feedback").classList.add("hidden");
   window.scrollTo(0, 0);
 }
@@ -136,15 +139,65 @@ function initSetup() {
   $("topic").onkeydown = (e) => { if (e.key === "Enter") startSession(); };
 }
 
+// ---------- biblioteca (estudos salvos no navegador) ----------
+const LEVEL_ICON = { "iniciante": "🌱", "intermediário": "🌿", "avançado": "🌳" };
+
+function renderLibrary() {
+  const sets = library.list();
+  $("library").classList.toggle("hidden", sets.length === 0);
+  const list = $("library-list");
+  list.innerHTML = "";
+  sets.forEach((e) => {
+    const n = e.items.length;
+    const meta = [
+      e.mode === "quiz" ? "🎯 Quiz" : "🃏 Flashcards",
+      `${LEVEL_ICON[e.level] || ""} ${e.level}`,
+      `${n} ${n === 1 ? "item" : "itens"}`,
+      new Date(e.createdAt).toLocaleDateString("pt-BR"),
+      e.last ? `último: ${e.last.hits}/${e.last.total}` : "ainda não jogado",
+    ].join(" · ");
+    const row = document.createElement("div");
+    row.className = "lib-item";
+    row.innerHTML = `<span class="grow">${esc(e.topic)}<small>${esc(meta)}</small></span>
+      <button class="btn btn-green lib-play">▶ Rejogar</button>
+      <button class="icon-btn lib-del" title="Excluir" aria-label="Excluir">🗑</button>`;
+    row.querySelector(".lib-play").onclick = () => startReplay(e.id);
+    row.querySelector(".lib-del").onclick = () => {
+      if (confirm(`Excluir "${e.topic}" da sua biblioteca?`)) { library.remove(e.id); renderLibrary(); }
+    };
+    list.appendChild(row);
+  });
+}
+
+// Rejoga um estudo salvo: usa as perguntas guardadas, sem carregar nem chamar o modelo.
+function startReplay(id) {
+  const e = library.get(id);
+  if (!e) return renderLibrary();
+  Object.assign(state, {
+    mode: e.mode, level: e.level, topic: e.topic, context: e.context || "",
+    items: e.items.map((i) => ({ ...i })), total: e.items.length,
+    current: 0, hearts: 3, xp: 0, combo: 0, results: [],
+    waiting: false, genError: null, answered: false, runId: state.runId + 1,
+    libId: e.id,
+  });
+  show("game");
+  renderHearts();
+  showCurrent();
+}
+
 // ---------- iniciar sessão ----------
 async function startSession() {
   const topic = $("topic").value.trim();
   if (!topic) { $("topic").focus(); $("topic").style.borderColor = "var(--red)"; return; }
   $("topic").style.borderColor = "";
   Object.assign(state, {
+    // nível e modo vêm dos botões da tela (rejogar um estudo salvo muda o state)
+    level: $("level").querySelector(".active").dataset.v,
+    mode: $("mode").querySelector(".active").dataset.v,
     topic, context: $("context").value.trim(), total: +$("count").value,
     items: [], current: 0, hearts: 3, xp: 0, combo: 0, results: [],
     waiting: false, genError: null, answered: false, runId: state.runId + 1,
+    libId: library.newId(),
   });
 
   show("loading");
@@ -192,6 +245,9 @@ async function generateLoop(runId) {
       });
       if (runId !== state.runId) return;
       state.items.push(item);
+      // salva a cada pergunta gerada: mesmo que o usuário saia antes do fim, nada se perde
+      library.saveSet({ id: state.libId, topic: state.topic, context: state.context,
+                        level: state.level, mode: state.mode, items: state.items });
       if (state.waiting && state.items.length - 1 === state.current) { state.waiting = false; showCurrent(); }
     } catch (e) {
       if (runId !== state.runId) return;
@@ -297,7 +353,8 @@ function grade(ok, text, item) {
   $("feedback-text").textContent = text || "";
   $("explain-box").classList.add("hidden");
   $("explain-box").textContent = "";
-  $("btn-explain").classList.toggle("hidden", ok);
+  // sem modelo carregado (rejogando um estudo salvo) não há como explicar mais
+  $("btn-explain").classList.toggle("hidden", ok || !currentModel());
   $("btn-explain").disabled = false;
   $("btn-explain").onclick = () => explainMore(item);
   const last = state.current + 1 >= state.total || state.hearts <= 0;
@@ -339,9 +396,18 @@ async function finish() {
   $("result-score").textContent = `${hits}/${total}`;
   $("result-xp").textContent = "+" + state.xp;
   registerStudyDay(state.xp);
+  if (state.libId) library.recordPlay(state.libId, hits, total);
   if (stars >= 2) { confetti(); sfx.win(); }
 
   const box = $("result-feedback");
+  if (!currentModel()) {
+    // rejogando um estudo salvo sem o modelo carregado: resumo local
+    const wrong = state.results.filter((r) => !r.correct);
+    box.textContent = wrong.length
+      ? "Para revisar:\n" + wrong.map((r) => `• ${r.question} → ${r.answer}`).join("\n")
+      : "Você acertou tudo. Mandou muito bem!";
+    return;
+  }
   box.textContent = "🦉 analisando seu desempenho...";
   const resumo = state.results.map((r, i) =>
     `${i + 1}. ${r.question} → ${r.correct ? "ACERTOU" : "ERROU (resposta certa: " + r.answer + ")"}`).join("\n");

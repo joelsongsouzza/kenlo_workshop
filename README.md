@@ -15,6 +15,7 @@ Arraste esta pasta no Netlify (ou `netlify deploy --prod --dir .`).
 ## Arquivos
 - `llm.js` — tudo do WebLLM (carregar modelo, JSON com schema, streaming). Comece por aqui.
 - `app.js` — interface e gamificação (vidas, XP, combo, streak).
+- `library.js` — biblioteca de estudos salvos no `localStorage` (até 50). Toda pergunta gerada é salva na hora e pode ser rejogada pela tela inicial, sem modelo e sem esperar a IA.
 - `style.css`, `index.html` — visual.
 
 ## Dicas para a apresentação
